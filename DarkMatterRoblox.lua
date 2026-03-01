@@ -7,13 +7,15 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local noclipActive = false
 local espActive = false
-local wallCheckActive = true -- Nueva variable para el chequeo de muros
+local wallCheckActive = true 
 
--- Variables Aimbot
+-- Variables Aimbot (Actualizadas)
 local aimbotActive = false
 local showFov = false
 local fovRadius = 100
 local snapSpeed = 0.1 
+local ignoreFriends = true -- NUEVO
+local ignoreDead = true    -- NUEVO
 
 -- --- INTERFAZ BASE ---
 local screenGui = Instance.new("ScreenGui")
@@ -36,13 +38,12 @@ fovStroke.Color = Color3.fromRGB(138, 43, 226)
 fovStroke.Thickness = 1
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 
--- MENÚ MINIMIZADO (Estilo Barra)
+-- MENÚ MINIMIZADO
 local miniFrame = Instance.new("Frame")
 miniFrame.Name = "MiniMenu"
 miniFrame.Size = UDim2.new(0, 250, 0, 40)
 miniFrame.Position = UDim2.new(0.5, -125, 0.4, 0)
 miniFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-miniFrame.BorderSizePixel = 0
 miniFrame.Visible = false
 miniFrame.Active = true
 miniFrame.Parent = screenGui
@@ -69,12 +70,11 @@ expandBtn.TextColor3 = Color3.new(1, 1, 1)
 expandBtn.Font = Enum.Font.GothamBold
 expandBtn.TextSize = 25
 
--- FRAME PRINCIPAL
+-- FRAME PRINCIPAL (Tamaño aumentado para nuevos botones)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 280) -- Aumentado un poco para el nuevo toggle
+mainFrame.Size = UDim2.new(0, 400, 0, 350) 
 mainFrame.Position = UDim2.new(0.5, -200, 0.4, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainFrame.BorderSizePixel = 0
 mainFrame.Active = true 
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
@@ -99,7 +99,7 @@ expandBtn.MouseButton1Click:Connect(function()
     miniFrame.Visible = false; mainFrame.Visible = true
 end)
 
--- SISTEMA DE PESTAÑAS (TABS)
+-- PESTAÑAS
 local tabHolder = Instance.new("Frame", mainFrame)
 tabHolder.Size = UDim2.new(1, -20, 0, 30); tabHolder.Position = UDim2.new(0, 10, 0, 40); tabHolder.BackgroundTransparency = 1
 local pages = Instance.new("Frame", mainFrame)
@@ -129,7 +129,7 @@ end
 local vBtn = addTab("VISUAL", visualPage); local mBtn = addTab("MOVIMIENTO", movePage); local aBtn = addTab("AIMBOT", aimbotPage)
 vBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
 
--- BOTONES SWITCH
+-- FUNCIÓN TOGGLE
 local function addToggle(name, parent)
     local row = Instance.new("Frame", parent); row.Size = UDim2.new(0.95, 0, 0, 35); row.BackgroundTransparency = 1
     local label = Instance.new("TextLabel", row); label.Text = name; label.Size = UDim2.new(0.6, 0, 1, 0); label.BackgroundTransparency = 1; label.TextColor3 = Color3.new(0.8,0.8,0.8); label.Font = Enum.Font.GothamMedium; label.TextSize = 13; label.TextXAlignment = Enum.TextXAlignment.Left
@@ -138,11 +138,14 @@ local function addToggle(name, parent)
     return bg, ind
 end
 
+-- CREACIÓN DE BOTONES
 local espT, espI = addToggle("ESP PLAYER BOXES", visualPage)
 local noclipT, noclipI = addToggle("NOCLIP XYZ", movePage)
 local aimT, aimI = addToggle("AIMBOT HEAD", aimbotPage)
 local fovT, fovI = addToggle("SHOW FOV CIRCLE", aimbotPage)
-local wallT, wallI = addToggle("WALL CHECK (VISIBLE)", aimbotPage) -- Nuevo Toggle
+local wallT, wallI = addToggle("WALL CHECK (VISIBLE)", aimbotPage)
+local friendT, friendI = addToggle("IGNORE FRIENDS", aimbotPage) -- NUEVO
+local deadT, deadI = addToggle("IGNORE DEAD", aimbotPage)       -- NUEVO
 
 -- SLIDER FOV
 local sliderFrame = Instance.new("Frame", aimbotPage); sliderFrame.Size = UDim2.new(0.95, 0, 0, 45); sliderFrame.BackgroundTransparency = 1
@@ -165,42 +168,38 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- FUNCIÓN PARA VERIFICAR VISIBILIDAD (Raycast)
+-- LÓGICA DE VERIFICACIÓN
 local function isVisible(targetPart)
-    if not wallCheckActive then return true end -- Si la opción está apagada, apunta a través de muros
-    
+    if not wallCheckActive then return true end
     local rayOrigin = camera.CFrame.Position
     local rayDirection = (targetPart.Position - rayOrigin)
-    
     local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {player.Character, targetPart.Parent} -- Ignora al usuario y al enemigo objetivo
+    raycastParams.FilterDescendantsInstances = {player.Character, targetPart.Parent}
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    
     local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-    
-    if not result then
-        return true -- No hay nada en medio
-    end
-    return false -- Hay un muro u objeto en medio
+    return not result
 end
 
--- LÓGICA AIMBOT MEJORADA
+-- LÓGICA AIMBOT (Actualizada con filtros)
 local function getClosestToCenter()
     local target = nil
     local shortestDist = fovRadius
     local viewportCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and p.Character:FindFirstChild("Head") then
-            local head = p.Character.Head
-            local pos, onScreen = camera:WorldToViewportPoint(head.Position)
+        if p ~= player and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            local hum = p.Character:FindFirstChild("Humanoid")
             
-            if onScreen then
-                local screenPos = Vector2.new(pos.X, pos.Y)
-                local dist = (screenPos - viewportCenter).Magnitude
+            if head and hum then
+                if ignoreDead and hum.Health <= 0 then continue end
+                if ignoreFriends and player:IsFriendsWith(p.UserId) then continue end
                 
-                if dist < shortestDist then
-                    if isVisible(head) then -- Verificamos si es visible o si el check está off
+                local pos, onScreen = camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local screenPos = Vector2.new(pos.X, pos.Y)
+                    local dist = (screenPos - viewportCenter).Magnitude
+                    if dist < shortestDist and isVisible(head) then
                         shortestDist = dist
                         target = head
                     end
@@ -211,7 +210,7 @@ local function getClosestToCenter()
     return target
 end
 
--- BUCLE PRINCIPAL
+-- ANIMACIONES Y EVENTOS
 local function toggleAn(act, b, i)
     TweenService:Create(i, TweenInfo.new(0.2), {Position = act and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)}):Play()
     TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = act and Color3.fromRGB(138, 43, 226) or Color3.fromRGB(45, 45, 45)}):Play()
@@ -221,35 +220,30 @@ espT.MouseButton1Click:Connect(function() espActive = not espActive toggleAn(esp
 noclipT.MouseButton1Click:Connect(function() noclipActive = not noclipActive toggleAn(noclipActive, noclipT, noclipI) end)
 aimT.MouseButton1Click:Connect(function() aimbotActive = not aimbotActive toggleAn(aimbotActive, aimT, aimI) end)
 fovT.MouseButton1Click:Connect(function() showFov = not showFov toggleAn(showFov, fovT, fovI); fovCircle.Visible = showFov end)
+wallT.MouseButton1Click:Connect(function() wallCheckActive = not wallCheckActive toggleAn(wallCheckActive, wallT, wallI) end)
 
--- Lógica para el nuevo Toggle de Paredes
-toggleAn(wallCheckActive, wallT, wallI) -- Inicia activado visualmente
-wallT.MouseButton1Click:Connect(function() 
-    wallCheckActive = not wallCheckActive 
-    toggleAn(wallCheckActive, wallT, wallI) 
-end)
+-- Eventos Nuevos
+toggleAn(ignoreFriends, friendT, friendI) 
+friendT.MouseButton1Click:Connect(function() ignoreFriends = not ignoreFriends toggleAn(ignoreFriends, friendT, friendI) end)
+toggleAn(ignoreDead, deadT, deadI)
+deadT.MouseButton1Click:Connect(function() ignoreDead = not ignoreDead toggleAn(ignoreDead, deadT, deadI) end)
 
+-- BUCLE RENDER
 local espObjects = {}
 RunService:BindToRenderStep("DarkMatterFinal", Enum.RenderPriority.Camera.Value + 1, function()
     local char = player.Character; if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = char.HumanoidRootPart
-
-    -- NOCLIP
+    
     if noclipActive then 
-        for _, p in pairs(char:GetDescendants()) do 
-            if p:IsA("BasePart") then p.CanCollide = false end 
-        end 
+        for _, p in pairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end 
     end
 
-    -- AIMBOT
     if aimbotActive then
         local target = getClosestToCenter()
         if target then
-            TweenService:Create(camera, TweenInfo.new(snapSpeed, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(camera.CFrame.Position, target.Position)}):Play()
+            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
         end
     end
 
-    -- ESP
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             if espActive then
@@ -257,7 +251,7 @@ RunService:BindToRenderStep("DarkMatterFinal", Enum.RenderPriority.Camera.Value 
                     local b = Instance.new("BillboardGui", screenGui); b.AlwaysOnTop = true; b.Size = UDim2.new(4, 0, 5.5, 0); local f = Instance.new("Frame", b); f.Size = UDim2.new(1, 0, 1, 0); f.BackgroundTransparency = 1; Instance.new("UIStroke", f).Color = Color3.new(1,1,1)
                     local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1, 0, 0, 20); t.Position = UDim2.new(0, 0, 0, -25); t.TextColor3 = Color3.new(1,1,1); t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBold; t.TextSize = 12; espObjects[plr] = {gui = b, label = t}
                 end
-                espObjects[plr].gui.Adornee = plr.Character.HumanoidRootPart; espObjects[plr].gui.Enabled = true; espObjects[plr].label.Text = plr.Name .. " [" .. math.floor((plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) .. "m]"
+                espObjects[plr].gui.Adornee = plr.Character.HumanoidRootPart; espObjects[plr].gui.Enabled = true; espObjects[plr].label.Text = plr.Name
             elseif espObjects[plr] then espObjects[plr].gui.Enabled = false end
         end
     end
@@ -270,6 +264,4 @@ local function makeDraggable(frame)
     frame.InputChanged:Connect(function(input) if drag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dStart; frame.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y) end end)
     UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then drag = false end end)
 end
-
-makeDraggable(mainFrame)
-makeDraggable(miniFrame)
+makeDraggable(mainFrame); makeDraggable(miniFrame)
