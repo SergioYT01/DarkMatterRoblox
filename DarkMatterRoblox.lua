@@ -1,164 +1,98 @@
--- DARK MATTER V5: INTERFAZ SCROLLING + ESP MASTER FIX + VUELO 3D REAL
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+-- ==========================================
+-- Interfaz DarkMatter (Plantilla Visual)
+-- ==========================================
 
--- ================= ESTADOS =================
-local states = {
-    noclip = false, fly = false, 
-    espMaster = false,
-    espBox = false, -- Este ahora será el Contorno (Highlight)
-    espSquare = false, -- Esta es la Hitbox cuadrada blanca
-    espNames = false, espDist = false, espTracers = false
-}
-local flySpeed = 50
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
 
--- ================= GUI PROFESIONAL =================
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "DarkMatterFinal"
-gui.ResetOnSpawn = false
+-- Crear la pantalla principal
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DarkMatterGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
 
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 250, 0, 300) -- Tamaño predeterminado fijo
-main.Position = UDim2.new(0.1, 0, 0.2, 0)
-main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-main.Active = true
-main.Draggable = true
-Instance.new("UICorner", main)
+-- Crear el marco principal (Fondo)
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 350, 0, 450)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 5, 25) -- Morado muy oscuro (casi negro)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
 
-local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 40)
-title.Text = "DARK MATTER"
-title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-title.TextSize = 18
+-- Borde redondeado para el marco principal
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
 
--- CONTENEDOR CON SCROLL (Para ver todas las opciones sin bugs)
-local scroll = Instance.new("ScrollingFrame", main)
-scroll.Size = UDim2.new(1, -10, 1, -50)
-scroll.Position = UDim2.new(0, 5, 0, 45)
-scroll.BackgroundTransparency = 1
-scroll.CanvasSize = UDim2.new(0, 0, 0, 450) -- Espacio para muchas opciones
-scroll.ScrollBarThickness = 4
+-- Barra de Título
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 10, 50) -- Morado oscuro
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
 
-local function createToggle(name, y, stateKey, parent, isMaster)
-    local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(0.9, 0, 0, 40)
-    btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.Text = name .. ": OFF"
-    btn.Font = Enum.Font.GothamBold
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
-    Instance.new("UICorner", btn)
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = titleBar
 
-    btn.MouseButton1Click:Connect(function()
-        states[stateKey] = not states[stateKey]
-        btn.Text = states[stateKey] and name .. ": ON" or name .. ": OFF"
-        btn.BackgroundColor3 = states[stateKey] and Color3.fromRGB(50, 170, 50) or Color3.fromRGB(170, 50, 50)
+-- Arreglar las esquinas inferiores de la barra de título
+local titleBottom = Instance.new("Frame")
+titleBottom.Size = UDim2.new(1, 0, 0, 10)
+titleBottom.Position = UDim2.new(0, 0, 1, -10)
+titleBottom.BackgroundColor3 = Color3.fromRGB(30, 10, 50)
+titleBottom.BorderSizePixel = 0
+titleBottom.Parent = titleBar
+
+-- Texto del Título
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.fromRGB(180, 100, 255) -- Morado neón/brillante
+titleLabel.Text = "DARKMATTER"
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextSize = 18
+titleLabel.Parent = titleBar
+
+-- Función para crear botones estéticos
+local function createButton(text, posY)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.85, 0, 0, 40)
+    btn.Position = UDim2.new(0.075, 0, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 15, 75)
+    btn.TextColor3 = Color3.fromRGB(220, 200, 255)
+    btn.Text = text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 14
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = false
+    btn.Parent = mainFrame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+
+    -- Efecto hover (Al pasar el ratón)
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(65, 25, 105)
     end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(45, 15, 75)
+    end)
+    
     return btn
 end
 
--- BOTONES DENTRO DEL SCROLL
-createToggle("NOCLIP", 10, "noclip", scroll)
-createToggle("VUELO 3D", 60, "fly", scroll)
-createToggle("ESP MASTER", 110, "espMaster", scroll)
-createToggle("HITBOX CUADRADA", 160, "espSquare", scroll) -- La que faltaba
-createToggle("CONTORNO (BOX)", 210, "espBox", scroll)
-createToggle("NOMBRES", 260, "espNames", scroll)
-createToggle("DISTANCIA", 310, "espDist", scroll)
-createToggle("LINEAS", 360, "espTracers", scroll)
+-- Añadir botones (Sin funcionalidad de exploit)
+local noclipBtn = createButton("Modo Fantasma (Solo UI)", 70)
+local flyBtn = createButton("Modo Vuelo (Solo UI)", 125)
 
--- ================= LÓGICA DE VUELO 3D (REPARADA) =================
-local bv = nil
-RunService.RenderStepped:Connect(function()
-    local char = player.Character
-    if states.fly and char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        local hum = char.Humanoid
-        
-        if not bv or bv.Parent ~= hrp then
-            if bv then bv:Destroy() end
-            bv = Instance.new("BodyVelocity", hrp)
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-        end
+-- Función para cerrar el menú
+local closeBtn = createButton("Cerrar Menú", 380)
+closeBtn.BackgroundColor3 = Color3.fromRGB(80, 20, 40) -- Un tono más rojizo/magenta para cerrar
+closeBtn.MouseEnter:Connect(function() closeBtn.BackgroundColor3 = Color3.fromRGB(110, 30, 50) end)
+closeBtn.MouseLeave:Connect(function() closeBtn.BackgroundColor3 = Color3.fromRGB(80, 20, 40) end)
 
-        -- Vuelo intuitivo: El joystick ahora mueve relativo a donde mira la cámara
-        local moveDir = hum.MoveDirection
-        if moveDir.Magnitude > 0 then
-            -- Esta fórmula corrige la inversión: Camina hacia donde miras
-            bv.Velocity = (camera.CFrame:VectorToWorldSpace(Vector3.new(moveDir.X, 0, moveDir.Z * 1.5))) * flySpeed
-        else
-            bv.Velocity = Vector3.new(0, 0.1, 0) -- Mantiene altura
-        end
-        hrp.Velocity = Vector3.zero
-    elseif bv then
-        bv:Destroy()
-        bv = nil
-    end
-
-    if states.noclip and char then
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = false end
-        end
-    end
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
 end)
-
--- ================= LÓGICA ESP COMPLETA =================
-local function applyESP(plr)
-    local function setup(char)
-        local root = char:WaitForChild("HumanoidRootPart", 10)
-        
-        -- 1. Hitbox Cuadrada Blanca (BoxHandleAdornment)
-        local square = Instance.new("BoxHandleAdornment", gui)
-        square.Size = Vector3.new(4, 5.5, 0.1)
-        square.AlwaysOnTop = true
-        square.Color3 = Color3.new(1, 1, 1) -- Blanco puro
-        square.Transparency = 0.6
-        square.Adornee = root
-
-        -- 2. Contorno (Highlight)
-        local highlight = Instance.new("Highlight", gui)
-        highlight.Adornee = char
-        highlight.OutlineColor = Color3.new(1, 0, 0) -- Rojo
-
-        -- 3. Info Text
-        local bill = Instance.new("BillboardGui", gui)
-        bill.Size = UDim2.new(0, 100, 0, 40)
-        bill.AlwaysOnTop = true
-        bill.Adornee = root
-        bill.StudsOffset = Vector3.new(0, 3, 0)
-        local label = Instance.new("TextLabel", bill)
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.new(1, 1, 1)
-        label.Font = Enum.Font.GothamBold
-
-        RunService.RenderStepped:Connect(function()
-            if not char or not char.Parent or not states.espMaster then
-                square.Visible = false; highlight.Enabled = false; bill.Enabled = false
-                return
-            end
-
-            square.Visible = states.espSquare
-            highlight.Enabled = states.espBox
-            
-            local info = ""
-            if states.espNames then info = info .. plr.Name .. "\n" end
-            if states.espDist then 
-                local d = math.floor((root.Position - player.Character.HumanoidRootPart.Position).Magnitude)
-                info = info .. d .. " Studs" 
-            end
-            label.Text = info
-            bill.Enabled = (states.espNames or states.espDist)
-        end)
-    end
-    plr.CharacterAdded:Connect(setup)
-    if plr.Character then setup(plr.Character) end
-end
-
-Players.PlayerAdded:Connect(applyESP)
-for _, p in pairs(Players:GetPlayers()) do if p ~= player then applyESP(p) end end
