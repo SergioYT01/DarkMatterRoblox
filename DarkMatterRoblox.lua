@@ -1,98 +1,165 @@
--- ==========================================
--- Interfaz DarkMatter (Plantilla Visual)
--- ==========================================
+-- [[ DARKMATTER UI - VERSIÓN FUNCIONAL PARA DESARROLLADORES ]] --
 
-local player = game.Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
 
--- Crear la pantalla principal
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DarkMatterGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
+screenGui.Name = "DarkMatterV2"
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Crear el marco principal (Fondo)
+-- Variables de Estado
+local noclipEnabled = false
+local flyEnabled = false
+local minimized = false
+local flySpeed = 50
+
+-- --- INTERFAZ GRÁFICA ---
+
 local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 350, 0, 450)
-mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
-mainFrame.BackgroundColor3 = Color3.fromRGB(15, 5, 25) -- Morado muy oscuro (casi negro)
+mainFrame.Size = UDim2.new(0, 280, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -140, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 25)
 mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- Permite moverlo
 mainFrame.Parent = screenGui
 
--- Borde redondeado para el marco principal
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
+corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = mainFrame
 
--- Barra de Título
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 40)
-titleBar.BackgroundColor3 = Color3.fromRGB(30, 10, 50) -- Morado oscuro
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
+-- Barra Superior
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 35)
+header.BackgroundColor3 = Color3.fromRGB(35, 15, 60)
+header.BorderSizePixel = 0
+header.Parent = mainFrame
 
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 10)
-titleCorner.Parent = titleBar
+local hCorner = Instance.new("UICorner")
+hCorner.Parent = header
 
--- Arreglar las esquinas inferiores de la barra de título
-local titleBottom = Instance.new("Frame")
-titleBottom.Size = UDim2.new(1, 0, 0, 10)
-titleBottom.Position = UDim2.new(0, 0, 1, -10)
-titleBottom.BackgroundColor3 = Color3.fromRGB(30, 10, 50)
-titleBottom.BorderSizePixel = 0
-titleBottom.Parent = titleBar
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -40, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "DARKMATTER"
+title.TextColor3 = Color3.fromRGB(180, 100, 255)
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
 
--- Texto del Título
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 1, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.TextColor3 = Color3.fromRGB(180, 100, 255) -- Morado neón/brillante
-titleLabel.Text = "DARKMATTER"
-titleLabel.Font = Enum.Font.GothamBlack
-titleLabel.TextSize = 18
-titleLabel.Parent = titleBar
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -35, 0, 2)
+minBtn.BackgroundTransparency = 1
+minBtn.Text = "▼"
+minBtn.TextColor3 = Color3.white
+minBtn.Parent = header
 
--- Función para crear botones estéticos
-local function createButton(text, posY)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.85, 0, 0, 40)
-    btn.Position = UDim2.new(0.075, 0, 0, posY)
-    btn.BackgroundColor3 = Color3.fromRGB(45, 15, 75)
-    btn.TextColor3 = Color3.fromRGB(220, 200, 255)
-    btn.Text = text
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 14
-    btn.BorderSizePixel = 0
-    btn.AutoButtonColor = false
-    btn.Parent = mainFrame
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
+-- Contenedor de Opciones
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, 0, 1, -35)
+container.Position = UDim2.new(0, 0, 0, 35)
+container.BackgroundTransparency = 1
+container.Parent = mainFrame
 
-    -- Efecto hover (Al pasar el ratón)
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(65, 25, 105)
+-- Función para crear Switch
+local function createSwitch(name, posY, callback)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 150, 0, 30)
+    label.Position = UDim2.new(0, 60, 0, posY)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
+
+    local bg = Instance.new("TextButton")
+    bg.Size = UDim2.new(0, 40, 0, 20)
+    bg.Position = UDim2.new(0, 10, 0, posY + 5)
+    bg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    bg.Text = ""
+    bg.Parent = container
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.new(0, 16, 0, 16)
+    circle.Position = UDim2.new(0, 2, 0, 2)
+    circle.BackgroundColor3 = Color3.white
+    circle.Parent = bg
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+    local active = false
+    bg.MouseButton1Click:Connect(function()
+        active = not active
+        circle:TweenPosition(active and UDim2.new(0, 22, 0, 2) or UDim2.new(0, 2, 0, 2), "Out", "Quad", 0.2)
+        bg.BackgroundColor3 = active and Color3.fromRGB(140, 50, 255) or Color3.fromRGB(50, 50, 50)
+        callback(active)
     end)
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(45, 15, 75)
-    end)
-    
-    return btn
 end
 
--- Añadir botones (Sin funcionalidad de exploit)
-local noclipBtn = createButton("Modo Fantasma (Solo UI)", 70)
-local flyBtn = createButton("Modo Vuelo (Solo UI)", 125)
+-- --- LÓGICA DE FUNCIONES ---
 
--- Función para cerrar el menú
-local closeBtn = createButton("Cerrar Menú", 380)
-closeBtn.BackgroundColor3 = Color3.fromRGB(80, 20, 40) -- Un tono más rojizo/magenta para cerrar
-closeBtn.MouseEnter:Connect(function() closeBtn.BackgroundColor3 = Color3.fromRGB(110, 30, 50) end)
-closeBtn.MouseLeave:Connect(function() closeBtn.BackgroundColor3 = Color3.fromRGB(80, 20, 40) end)
+-- 1. Minimizar
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    container.Visible = not minimized
+    mainFrame:TweenSize(minimized and UDim2.new(0, 280, 0, 35) or UDim2.new(0, 280, 0, 180), "Out", "Quad", 0.3)
+    minBtn.Text = minimized and "▲" or "▼"
+end)
 
-closeBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
+-- 2. Modo Fantasma (Noclip)
+createSwitch("Modo Fantasma", 20, function(state)
+    noclipEnabled = state
+end)
+
+RunService.Stepped:Connect(function()
+    if noclipEnabled and character then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- 3. Modo Vuelo (WASD / Joystick)
+createSwitch("Modo Vuelo", 70, function(state)
+    flyEnabled = state
+    local hrp = character:WaitForChild("HumanoidRootPart")
+    if state then
+        local bv = Instance.new("BodyVelocity", hrp)
+        bv.Name = "FlyVelocity"
+        bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bv.Velocity = Vector3.new(0,0,0)
+    else
+        if hrp:FindFirstChild("FlyVelocity") then hrp.FlyVelocity:Destroy() end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if flyEnabled and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        local camera = workspace.CurrentCamera
+        local moveDir = character.Humanoid.MoveDirection
+        
+        if hrp:FindFirstChild("FlyVelocity") then
+            hrp.FlyVelocity.Velocity = moveDir * flySpeed
+            -- Si no hay movimiento, mantener flotando
+            if moveDir.Magnitude > 0 then
+                hrp.FlyVelocity.Velocity = (camera.CFrame.LookVector * moveDir.Z + camera.CFrame.RightVector * moveDir.X) * flySpeed
+            else
+                hrp.FlyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+            end
+        end
+    end
+end)
+
+-- Actualizar personaje al morir
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
 end)
