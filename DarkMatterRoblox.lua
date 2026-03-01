@@ -1,187 +1,160 @@
---// DarkMatter Roblox Mod Menu
---// Solo para pruebas / aprendizaje
+-- DARK MATTER MOD MENU
+-- NOCLIP + FLY (CONTROLABLE) + ESP HITBOX
+-- PC + MÓVIL
+-- LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
--- Esperar personaje
-local function getChar()
-    return player.Character or player.CharacterAdded:Wait()
-end
+-- ====== ESTADOS ======
+local noclip = false
+local fly = false
+local esp = false
+local flySpeed = 60
 
--- GUI
-local gui = Instance.new("ScreenGui")
+-- ====== GUI ======
+local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "DarkMatterGui"
 gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
 
--- Main Frame
 local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 260, 0, 320)
-main.Position = UDim2.new(0, 20, 0.5, -160)
-main.BackgroundColor3 = Color3.fromRGB(20,20,20)
-main.BorderSizePixel = 0
+main.Size = UDim2.new(0,230,0,200)
+main.Position = UDim2.new(0,20,0.3,0)
+main.BackgroundColor3 = Color3.fromRGB(25,25,25)
 main.Active = true
 main.Draggable = true
-main.ZIndex = 10
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,12)
 
--- Corner
-local corner = Instance.new("UICorner", main)
-corner.CornerRadius = UDim.new(0, 12)
-
--- Title
 local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, -40, 0, 40)
-title.Position = UDim2.new(0, 10, 0, 0)
-title.Text = "MOD MENU"
-title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Size = UDim2.new(1,0,0,35)
 title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.ZIndex = 11
+title.Text = "DARK MATTER"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
 
--- Minimize Button
-local minBtn = Instance.new("TextButton", main)
-minBtn.Size = UDim2.new(0, 30, 0, 30)
-minBtn.Position = UDim2.new(1, -35, 0, 5)
-minBtn.Text = "-"
-minBtn.Font = Enum.Font.GothamBold
-minBtn.TextSize = 18
-minBtn.TextColor3 = Color3.new(1,1,1)
-minBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-minBtn.ZIndex = 12
-Instance.new("UICorner", minBtn)
-
--- Container
-local container = Instance.new("Frame", main)
-container.Position = UDim2.new(0, 0, 0, 40)
-container.Size = UDim2.new(1, 0, 1, -40)
-container.BackgroundTransparency = 1
-container.ZIndex = 11
-
--- Layout
-local layout = Instance.new("UIListLayout", container)
-layout.Padding = UDim.new(0, 8)
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
--- Button creator
-local function createButton(text)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -20, 0, 40)
-    b.Text = text
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 14
-    b.TextColor3 = Color3.new(1,1,1)
-    b.BackgroundColor3 = Color3.fromRGB(35,35,35)
-    b.ZIndex = 12
-    Instance.new("UICorner", b)
-    b.Parent = container
-    return b
+local function newButton(text, y)
+	local b = Instance.new("TextButton", main)
+	b.Size = UDim2.new(0,190,0,35)
+	b.Position = UDim2.new(0.5,-95,0,y)
+	b.Text = text
+	b.Font = Enum.Font.SourceSansBold
+	b.TextSize = 15
+	b.TextColor3 = Color3.new(1,1,1)
+	b.BackgroundColor3 = Color3.fromRGB(170,50,50)
+	Instance.new("UICorner", b)
+	return b
 end
 
--- Buttons
-local noclipBtn = createButton("NOCLIP: OFF")
-local flyBtn = createButton("FLY: OFF")
-local espBtn = createButton("ESP: OFF")
+local noclipBtn = newButton("NOCLIP: OFF", 45)
+local flyBtn = newButton("FLY: OFF", 85)
+local espBtn = newButton("ESP: OFF", 125)
 
---------------------------------------------------
--- NOCLIP
-local noclip = false
+-- ====== NOCLIP ======
 RunService.Stepped:Connect(function()
-    if noclip then
-        for _,v in pairs(getChar():GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = false
-            end
-        end
-    end
+	if noclip and player.Character then
+		for _,v in pairs(player.Character:GetDescendants()) do
+			if v:IsA("BasePart") then
+				v.CanCollide = false
+			end
+		end
+	end
 end)
 
 noclipBtn.MouseButton1Click:Connect(function()
-    noclip = not noclip
-    noclipBtn.Text = noclip and "NOCLIP: ON" or "NOCLIP: OFF"
+	noclip = not noclip
+	noclipBtn.Text = noclip and "NOCLIP: ON" or "NOCLIP: OFF"
+	noclipBtn.BackgroundColor3 = noclip and Color3.fromRGB(50,170,50) or Color3.fromRGB(170,50,50)
 end)
 
---------------------------------------------------
--- FLY
-local flying = false
+-- ====== FLY REAL (CONTROLABLE) ======
 local bv, bg
 
-local function stopFly()
-    if bv then bv:Destroy() end
-    if bg then bg:Destroy() end
-    bv, bg = nil, nil
+local function startFly()
+	local char = player.Character
+	if not char then return end
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	local hum = char:WaitForChild("Humanoid")
+
+	hum.PlatformStand = true
+
+	bv = Instance.new("BodyVelocity", hrp)
+	bv.MaxForce = Vector3.new(1e9,1e9,1e9)
+
+	bg = Instance.new("BodyGyro", hrp)
+	bg.MaxTorque = Vector3.new(1e9,1e9,1e9)
 end
+
+local function stopFly()
+	if bv then bv:Destroy() end
+	if bg then bg:Destroy() end
+	if player.Character then
+		local hum = player.Character:FindFirstChild("Humanoid")
+		if hum then hum.PlatformStand = false end
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	if fly and bv and player.Character then
+		local hum = player.Character:FindFirstChild("Humanoid")
+		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+		if not hum or not hrp then return end
+
+		local moveDir = hum.MoveDirection
+		local up = 0
+
+		if UIS:IsKeyDown(Enum.KeyCode.Space) then up = 1 end
+		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then up = -1 end
+
+		bv.Velocity = (moveDir * flySpeed) + Vector3.new(0, up * flySpeed, 0)
+		bg.CFrame = hrp.CFrame
+	end
+end)
 
 flyBtn.MouseButton1Click:Connect(function()
-    flying = not flying
-    flyBtn.Text = flying and "FLY: ON" or "FLY: OFF"
-
-    local hrp = getChar():WaitForChild("HumanoidRootPart")
-
-    if flying then
-        bv = Instance.new("BodyVelocity", hrp)
-        bv.MaxForce = Vector3.new(1e9,1e9,1e9)
-        bg = Instance.new("BodyGyro", hrp)
-        bg.MaxTorque = Vector3.new(1e9,1e9,1e9)
-
-        RunService.RenderStepped:Connect(function()
-            if not flying then return end
-            bv.Velocity = workspace.CurrentCamera.CFrame.LookVector * 60
-            bg.CFrame = workspace.CurrentCamera.CFrame
-        end)
-    else
-        stopFly()
-    end
+	fly = not fly
+	flyBtn.Text = fly and "FLY: ON" or "FLY: OFF"
+	flyBtn.BackgroundColor3 = fly and Color3.fromRGB(50,170,50) or Color3.fromRGB(170,50,50)
+	if fly then startFly() else stopFly() end
 end)
 
---------------------------------------------------
--- ESP
-local espEnabled = false
-local espObjects = {}
+-- ====== ESP HITBOX ======
+local espBoxes = {}
 
-local function clearESP()
-    for _,v in pairs(espObjects) do
-        if v then v:Destroy() end
-    end
-    espObjects = {}
+local function addESP(plr)
+	if plr == player then return end
+
+	plr.CharacterAdded:Connect(function(char)
+		if not esp then return end
+		local hrp = char:WaitForChild("HumanoidRootPart",5)
+		if not hrp then return end
+
+		local box = Instance.new("BoxHandleAdornment")
+		box.Adornee = hrp
+		box.Size = Vector3.new(4,6,2)
+		box.Color3 = Color3.fromRGB(255,0,0)
+		box.Transparency = 0.5
+		box.AlwaysOnTop = true
+		box.ZIndex = 5
+		box.Parent = gui
+
+		espBoxes[plr] = box
+	end)
 end
 
-local function createESP(plr)
-    if plr == player then return end
-    local char = plr.Character
-    if not char then return end
-
-    local box = Instance.new("BoxHandleAdornment")
-    box.Adornee = char:WaitForChild("HumanoidRootPart")
-    box.Size = Vector3.new(4,6,2)
-    box.Color3 = Color3.fromRGB(255,0,0)
-    box.AlwaysOnTop = true
-    box.ZIndex = 20
-    box.Parent = gui
-    table.insert(espObjects, box)
+for _,p in pairs(Players:GetPlayers()) do
+	addESP(p)
 end
+Players.PlayerAdded:Connect(addESP)
 
 espBtn.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
-    espBtn.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+	esp = not esp
+	espBtn.Text = esp and "ESP: ON" or "ESP: OFF"
+	espBtn.BackgroundColor3 = esp and Color3.fromRGB(50,170,50) or Color3.fromRGB(170,50,50)
 
-    clearESP()
-    if espEnabled then
-        for _,p in pairs(Players:GetPlayers()) do
-            createESP(p)
-        end
-    end
-end)
-
---------------------------------------------------
--- MINIMIZE
-local minimized = false
-minBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    container.Visible = not minimized
-    main.Size = minimized and UDim2.new(0,260,0,40) or UDim2.new(0,260,0,320)
-    minBtn.Text = minimized and "+" or "-"
+	for _,v in pairs(espBoxes) do
+		if v then v.Visible = esp end
+	end
 end)
