@@ -137,55 +137,50 @@ end)
 
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- ================= LÓGICA ESP (MEJORADA) =================
-local highlights = {}
+-- ================= LÓGICA ESP (INFINITO) =================
+local espContainers = {}
 
 local function applyESP(plr)
-	-- Evitar marcarnos a nosotros mismos
 	if plr == player then return end
 
-	local function setupHighlight(character)
+	local function setupESP(character)
 		if not character then return end
 		
-		-- Limpiar si ya existía uno para este jugador
-		if highlights[plr] then
-			highlights[plr]:Destroy()
-		end
+		-- Eliminar rastro anterior si existe
+		if espContainers[plr] then espContainers[plr]:Destroy() end
 
-		-- Crear el efecto visual
-		local h = Instance.new("Highlight")
-		h.Name = "ESP_Highlight_" .. plr.Name
-		h.Adornee = character
-		h.FillColor = Color3.fromRGB(255, 0, 0) -- Rojo
-		h.FillTransparency = 0.5
-		h.OutlineColor = Color3.fromRGB(255, 255, 255) -- Blanco
-		h.OutlineTransparency = 0
-		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		h.Enabled = esp
-		h.Parent = gui -- Lo guardamos en la GUI para que no lo borre el juego
-		
-		highlights[plr] = h
+		-- Creamos una caja visual (Adornment) que no tiene el límite de 31
+		local box = Instance.new("BoxHandleAdornment")
+		box.Name = "ESP_Box_" .. plr.Name
+		box.Size = Vector3.new(4, 6, 1) -- Tamaño aproximado de un personaje
+		box.Color3 = Color3.fromRGB(255, 0, 0) -- Rojo
+		box.Transparency = 0.6
+		box.AlwaysOnTop = true
+		box.ZIndex = 10
+		box.Adornee = character:WaitForChild("HumanoidRootPart", 5)
+		box.Visible = esp
+		box.Parent = gui -- Guardado en tu menú para seguridad
+
+		espContainers[plr] = box
 	end
 
-	-- Aplicar al personaje actual y a los que vengan después (cuando muera y reaparezca)
-	if plr.Character then setupHighlight(plr.Character) end
-	plr.CharacterAdded:Connect(setupHighlight)
+	-- Se activa al aparecer y al reaparecer
+	plr.CharacterAdded:Connect(setupESP)
+	if plr.Character then setupESP(plr.Character) end
 end
 
--- Escuchar a los jugadores que entren y a los que ya están en el servidor
+-- Escuchar jugadores actuales y nuevos
 Players.PlayerAdded:Connect(applyESP)
-for _, p in pairs(Players:GetPlayers()) do
-	applyESP(p)
-end
+for _, p in pairs(Players:GetPlayers()) do applyESP(p) end
 
--- Función del botón
+-- Botón del Menú
 espBtn.MouseButton1Click:Connect(function()
 	esp = not esp
 	espBtn.Text = esp and "ESP: ON" or "ESP: OFF"
 	espBtn.BackgroundColor3 = esp and Color3.fromRGB(50, 170, 50) or Color3.fromRGB(170, 50, 50)
 	
-	-- Actualizar todos los highlights existentes
-	for _, h in pairs(highlights) do
-		if h then h.Enabled = esp end
+	-- Cambiar visibilidad de todas las cajas
+	for _, box in pairs(espContainers) do
+		if box then box.Visible = esp end
 	end
 end)
