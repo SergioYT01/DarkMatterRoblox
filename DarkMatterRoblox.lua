@@ -137,28 +137,55 @@ end)
 
 flyBtn.MouseButton1Click:Connect(toggleFly)
 
--- ================= LÓGICA ESP =================
+-- ================= LÓGICA ESP (MEJORADA) =================
 local highlights = {}
 
-local function createESP(p)
-	if p == player then return end
-	p.CharacterAdded:Connect(function(char)
+local function applyESP(plr)
+	-- Evitar marcarnos a nosotros mismos
+	if plr == player then return end
+
+	local function setupHighlight(character)
+		if not character then return end
+		
+		-- Limpiar si ya existía uno para este jugador
+		if highlights[plr] then
+			highlights[plr]:Destroy()
+		end
+
+		-- Crear el efecto visual
 		local h = Instance.new("Highlight")
-		h.Adornee = char
+		h.Name = "ESP_Highlight_" .. plr.Name
+		h.Adornee = character
+		h.FillColor = Color3.fromRGB(255, 0, 0) -- Rojo
 		h.FillTransparency = 0.5
-		h.OutlineColor = Color3.new(1, 0, 0)
+		h.OutlineColor = Color3.fromRGB(255, 255, 255) -- Blanco
+		h.OutlineTransparency = 0
+		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		h.Enabled = esp
-		h.Parent = gui
-		highlights[p] = h
-	end)
+		h.Parent = gui -- Lo guardamos en la GUI para que no lo borre el juego
+		
+		highlights[plr] = h
+	end
+
+	-- Aplicar al personaje actual y a los que vengan después (cuando muera y reaparezca)
+	if plr.Character then setupHighlight(plr.Character) end
+	plr.CharacterAdded:Connect(setupHighlight)
 end
 
-Players.PlayerAdded:Connect(createESP)
-for _, p in pairs(Players:GetPlayers()) do createESP(p) end
+-- Escuchar a los jugadores que entren y a los que ya están en el servidor
+Players.PlayerAdded:Connect(applyESP)
+for _, p in pairs(Players:GetPlayers()) do
+	applyESP(p)
+end
 
+-- Función del botón
 espBtn.MouseButton1Click:Connect(function()
 	esp = not esp
 	espBtn.Text = esp and "ESP: ON" or "ESP: OFF"
 	espBtn.BackgroundColor3 = esp and Color3.fromRGB(50, 170, 50) or Color3.fromRGB(170, 50, 50)
-	for _, h in pairs(highlights) do h.Enabled = esp end
+	
+	-- Actualizar todos los highlights existentes
+	for _, h in pairs(highlights) do
+		if h then h.Enabled = esp end
+	end
 end)
