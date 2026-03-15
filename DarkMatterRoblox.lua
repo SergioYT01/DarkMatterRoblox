@@ -531,7 +531,6 @@ CreateSlider("TRANSPARENCIA (%)", 0, 100, State.HitboxTransparency * 100, functi
 
 -- AIMBOTS
 CreateToggle("📱 AIMBOT (MOBILE - Auto Lock)", "AimbotMobile", nil)
-CreateToggle("🎯 SILENT AIM (Sin Mover Cámara)", "SilentAim", nil)
 
 -- SELECCIÓN DE PARTE DEL CUERPO
 local BodyPartFrame = Instance.new("Frame"); BodyPartFrame.Size = UDim2.new(1, -10, 0, 40); BodyPartFrame.BackgroundColor3 = THEME.ElementBG; BodyPartFrame.Parent = Container; BodyPartFrame.LayoutOrder = getNextOrder()
@@ -545,6 +544,7 @@ BPBtn.MouseButton1Click:Connect(function() currentBPIdx = currentBPIdx + 1; if c
 -- OPCIÓN: Rapid Fire exclusiva de Rivals
 if IsRivals then
     CreateToggle("🔥 RAPID FIRE", "RapidFire", nil)
+    CreateToggle("🎯 SILENT AIM (Sin Mover Cámara)", "SilentAim", nil)
 end
 
 -- Selección de modo para AIMBOT (SOLO SI NO ES RIVALS)
