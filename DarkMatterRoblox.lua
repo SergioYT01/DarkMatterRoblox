@@ -12,6 +12,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -72,7 +73,11 @@ local State = {
     ShowHitbox = true,
     HitboxSize = 15,
     HitboxTransparency = 0.7,
-    HitboxColor = Color3.fromRGB(170, 0, 255)
+    HitboxColor = Color3.fromRGB(170, 0, 255),
+    FloatAimbot = false,
+    FloatESP = false,
+    FloatFly = false,
+    EditingHUD = false
 }
 
 -- // COLORES Y TEMA DARKMATTER //
@@ -85,6 +90,35 @@ local THEME = {
     Danger = Color3.fromRGB(255, 0, 50),
     Success = Color3.fromRGB(0, 255, 100)
 }
+
+-- // SISTEMA DE GUARDADO DEL HUD //
+local HUDFileName = "DarkMatter_HUD_Save.json"
+
+local function SaveHUDPosition(pos, name)
+    if writefile then
+        pcall(function()
+            local data = {
+                XScale = pos.X.Scale,
+                XOffset = pos.X.Offset,
+                YScale = pos.Y.Scale,
+                YOffset = pos.Y.Offset
+            }
+            writefile("DarkMatter_Pos_" .. name .. ".json", HttpService:JSONEncode(data))
+        end)
+    end
+end
+
+local function LoadHUDPosition(name)
+    if isfile and isfile("DarkMatter_Pos_" .. name .. ".json") and readfile then
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(readfile("DarkMatter_Pos_" .. name .. ".json"))
+        end)
+        if success and result then
+            return UDim2.new(result.XScale, result.XOffset, result.YScale, result.YOffset)
+        end
+    end
+    return nil
+end
 
 -- // FUNCIÓN DE COLOR RGB //
 local function GetRGB()
@@ -115,42 +149,100 @@ local BoxFolder = Instance.new("Folder", ScreenGui)
 BoxFolder.Name = "ESP_Boxes"
 
 -- // BOTONES DE VUELO //
-local FlyControls = Instance.new("Frame")
-FlyControls.Size = UDim2.new(0, 60, 0, 130)
-FlyControls.Position = UDim2.new(1, -80, 0.5, -65)
-FlyControls.BackgroundTransparency = 1
-FlyControls.Visible = false
-FlyControls.Parent = ScreenGui
-
-local function CreateFlyBtn(text, pos, stateKey)
+local function CreateFlyBtn(text, defaultPos, stateKey)
     local Btn = Instance.new("TextButton")
-    Btn.Size = UDim2.new(1, 0, 0, 60)
-    Btn.Position = pos
+    Btn.Size = UDim2.new(0, 60, 0, 60)
+    Btn.Position = LoadHUDPosition(text) or defaultPos
     Btn.BackgroundColor3 = THEME.Background
     Btn.TextColor3 = THEME.Accent
     Btn.Text = text
     Btn.Font = Enum.Font.GothamBold
     Btn.TextSize = 30
-    Btn.Parent = FlyControls
+    Btn.Visible = false
+    Btn.Parent = ScreenGui
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 10)
     Instance.new("UIStroke", Btn).Color = THEME.Accent
-    
+
+    local dragging, dragStart, startPos
     Btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if State.EditingHUD and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            dragging = true
+            dragStart = input.Position
+            startPos = Btn.Position
+        elseif not State.EditingHUD and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
             State[stateKey] = true
             TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.Accent, TextColor3 = THEME.Text}):Play()
         end
     end)
-    Btn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and State.EditingHUD and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            Btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+            dragging = false
+            SaveHUDPosition(Btn.Position, text)
+        elseif not State.EditingHUD and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
             State[stateKey] = false
             TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.Background, TextColor3 = THEME.Accent}):Play()
         end
     end)
+    return Btn
 end
 
-CreateFlyBtn("▲", UDim2.new(0, 0, 0, 0), "FlyingUp")
-CreateFlyBtn("▼", UDim2.new(0, 0, 0, 70), "FlyingDown")
+local FlyBtnUp = CreateFlyBtn("▲", UDim2.new(0, 50, 0, 300), "FlyingUp")
+local FlyBtnDown = CreateFlyBtn("▼", UDim2.new(0, 50, 0, 370), "FlyingDown")
+
+-- // EDICIÓN DE HUD UI (BOTONES INFERIORES) //
+local EditHUDFrame = Instance.new("Frame")
+EditHUDFrame.Size = UDim2.new(0, 320, 0, 50)
+EditHUDFrame.Position = UDim2.new(0.5, -160, 1, -80)
+EditHUDFrame.BackgroundTransparency = 1
+EditHUDFrame.Visible = false
+EditHUDFrame.ZIndex = 100
+EditHUDFrame.Parent = ScreenGui
+
+local SaveHUDBtn = Instance.new("TextButton")
+SaveHUDBtn.Size = UDim2.new(0.48, 0, 1, 0)
+SaveHUDBtn.Position = UDim2.new(0, 0, 0, 0)
+SaveHUDBtn.BackgroundColor3 = THEME.Success
+SaveHUDBtn.TextColor3 = THEME.Background
+SaveHUDBtn.Font = Enum.Font.GothamBold
+SaveHUDBtn.Text = "GUARDAR HUD"
+SaveHUDBtn.ZIndex = 101
+SaveHUDBtn.Parent = EditHUDFrame
+Instance.new("UICorner", SaveHUDBtn).CornerRadius = UDim.new(0, 6)
+
+local CancelHUDBtn = Instance.new("TextButton")
+CancelHUDBtn.Size = UDim2.new(0.48, 0, 1, 0)
+CancelHUDBtn.Position = UDim2.new(0.52, 0, 0, 0)
+CancelHUDBtn.BackgroundColor3 = THEME.Danger
+CancelHUDBtn.TextColor3 = THEME.Text
+CancelHUDBtn.Font = Enum.Font.GothamBold
+CancelHUDBtn.Text = "CANCELAR EDICIÓN"
+CancelHUDBtn.ZIndex = 101
+CancelHUDBtn.Parent = EditHUDFrame
+Instance.new("UICorner", CancelHUDBtn).CornerRadius = UDim.new(0, 6)
+
+local MainFrameVisibilityBackup = true
+
+local function EnableHUDEdit(v)
+    State.EditingHUD = v
+    EditHUDFrame.Visible = v
+    
+    if v then
+        MainFrameVisibilityBackup = ScreenGui:FindFirstChild("DarkMatter_V4_Main") and ScreenGui.DarkMatter_V4_Main.Visible or true
+        if ScreenGui:FindFirstChild("DarkMatter_V4_Main") then ScreenGui.DarkMatter_V4_Main.Visible = false end
+        FlyBtnUp.Visible = true
+        FlyBtnDown.Visible = true
+    else
+        if ScreenGui:FindFirstChild("DarkMatter_V4_Main") then ScreenGui.DarkMatter_V4_Main.Visible = MainFrameVisibilityBackup end
+        FlyBtnUp.Visible = State.Fly
+        FlyBtnDown.Visible = State.Fly
+    end
+end
 
 -- // FOV //
 local FOVFrame = Instance.new("Frame")
@@ -166,6 +258,7 @@ local FOVStroke = Instance.new("UIStroke", FOVFrame); FOVStroke.Color = THEME.Ac
 
 -- // PANEL PRINCIPAL //
 local MainFrame = Instance.new("Frame")
+MainFrame.Name = "DarkMatter_V4_Main"
 MainFrame.Size = UDim2.new(0, 400, 0, 350)
 MainFrame.Position = UDim2.new(0.5, -200, 0.5, -175)
 MainFrame.BackgroundColor3 = THEME.Background
@@ -215,8 +308,10 @@ GhostBtn.Parent = ScreenGui
 local function ToggleVisibility(visible)
     State.PanelVisible = visible
     MainFrame.Visible = visible
-    -- Los botones de vuelo ahora son independientes de la visibilidad del panel principal si están activos
-    FlyControls.Visible = State.Fly
+    if not State.EditingHUD then
+        FlyBtnUp.Visible = State.Fly
+        FlyBtnDown.Visible = State.Fly
+    end
     GhostBtn.Visible = not visible
 end
 
@@ -328,10 +423,16 @@ local bv, bg
 local function ToggleFly(v)
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then 
-        FlyControls.Visible = false
+        FlyBtnUp.Visible = false
+        FlyBtnDown.Visible = false
         return 
     end
-    FlyControls.Visible = v
+    
+    if not State.EditingHUD then
+        FlyBtnUp.Visible = v
+        FlyBtnDown.Visible = v
+    end
+    
     if v then
         bv = Instance.new("BodyVelocity", char.HumanoidRootPart)
         bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
@@ -447,6 +548,64 @@ local function MakeDraggable(guiObject, target)
 end
 MakeDraggable(TitleBar, MainFrame)
 
+-- // BOTONES FLOTANTES REMOTOS //
+local function MakeDraggableFloat(guiObject)
+    local dragging, dragStart, startPos
+    guiObject.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = guiObject.Position end end)
+    UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+end
+
+local function CreateFloatingButton(text, pos)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(0, 45, 0, 45)
+    Btn.Position = pos
+    Btn.BackgroundColor3 = THEME.ElementBG
+    Btn.TextColor3 = THEME.Text
+    Btn.Text = text
+    Btn.Font = Enum.Font.GothamBold
+    Btn.TextSize = 12
+    Btn.Visible = false
+    Btn.Parent = ScreenGui
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(1, 0)
+    local Stroke = Instance.new("UIStroke", Btn)
+    Stroke.Color = THEME.Accent
+    Stroke.Thickness = 2
+    MakeDraggableFloat(Btn)
+    return Btn, Stroke
+end
+
+local ToggleUpdaters = {}
+
+local FloatAimbotBtn, StrokeAimbot = CreateFloatingButton("AIM", UDim2.new(0, 15, 0.3, 0))
+local FloatESPBtn, StrokeESP = CreateFloatingButton("ESP", UDim2.new(0, 15, 0.4, 0))
+local FloatFlyBtn, StrokeFly = CreateFloatingButton("FLY", UDim2.new(0, 15, 0.5, 0))
+
+FloatAimbotBtn.MouseButton1Click:Connect(function()
+    local newState = not State.AimbotMobile
+    if ToggleUpdaters["AimbotMobile"] then ToggleUpdaters["AimbotMobile"](newState) end
+    if ToggleUpdaters["ShowFOV"] then ToggleUpdaters["ShowFOV"](newState) end
+    StrokeAimbot.Color = State.AimbotMobile and THEME.Success or THEME.Accent
+end)
+
+FloatESPBtn.MouseButton1Click:Connect(function()
+    local newState = not State.ESP
+    if ToggleUpdaters["ESP"] then ToggleUpdaters["ESP"](newState) end
+    if ToggleUpdaters["ESPLine"] then ToggleUpdaters["ESPLine"](newState) end
+    if ToggleUpdaters["ESPBox"] then ToggleUpdaters["ESPBox"](newState) end
+    if ToggleUpdaters["ESPInfo"] then ToggleUpdaters["ESPInfo"](newState) end
+    if ToggleUpdaters["ESPHealth"] then ToggleUpdaters["ESPHealth"](newState) end
+    if not newState then BoxFolder:ClearAllChildren() end
+    StrokeESP.Color = State.ESP and THEME.Success or THEME.Accent
+end)
+
+FloatFlyBtn.MouseButton1Click:Connect(function()
+    if State.EditingHUD then return end
+    local newState = not State.Fly
+    if ToggleUpdaters["Fly"] then ToggleUpdaters["Fly"](newState) end
+    StrokeFly.Color = State.Fly and THEME.Success or THEME.Accent
+end)
+
 local layoutIdx = 0
 local function getNextOrder() layoutIdx = layoutIdx + 1; return layoutIdx end
 
@@ -457,13 +616,30 @@ local function CreateToggle(text, stateKey, callback)
     local Lbl = Instance.new("TextLabel"); Lbl.Text = "  " .. text; Lbl.Size = UDim2.new(0.7, 0, 1, 0); Lbl.BackgroundTransparency = 1; Lbl.TextColor3 = THEME.Text; Lbl.Font = Enum.Font.GothamSemibold; Lbl.TextXAlignment = Enum.TextXAlignment.Left; Lbl.Parent = Frame
     local Switch = Instance.new("TextButton"); Switch.Text = ""; Switch.Size = UDim2.new(0, 40, 0, 20); Switch.Position = UDim2.new(1, -50, 0.5, -10); Switch.BackgroundColor3 = State[stateKey] and THEME.Accent or Color3.fromRGB(50,50,50); Switch.Parent = Frame; Instance.new("UICorner", Switch).CornerRadius = UDim.new(1, 0)
     local Dot = Instance.new("Frame"); Dot.Size = UDim2.new(0, 16, 0, 16); Dot.Position = State[stateKey] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8); Dot.BackgroundColor3 = THEME.Text; Dot.Parent = Switch; Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
-    Switch.MouseButton1Click:Connect(function()
-        State[stateKey] = not State[stateKey]
+    
+    ToggleUpdaters[stateKey] = function(forceState)
+        if forceState ~= nil then
+            State[stateKey] = forceState
+        else
+            State[stateKey] = not State[stateKey]
+        end
         TweenService:Create(Switch, TweenInfo.new(0.2), {BackgroundColor3 = State[stateKey] and THEME.Accent or Color3.fromRGB(50,50,50)}):Play()
         TweenService:Create(Dot, TweenInfo.new(0.2), {Position = State[stateKey] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)}):Play()
         if callback then callback(State[stateKey]) end
+    end
+
+    Switch.MouseButton1Click:Connect(function()
+        ToggleUpdaters[stateKey]()
     end)
     return Frame
+end
+
+local function CreateButton(text, callback, parent)
+    local Btn = Instance.new("TextButton")
+    Btn.Text = text; Btn.Size = UDim2.new(1, -10, 0, 35); Btn.BackgroundColor3 = THEME.ElementBG; Btn.TextColor3 = THEME.Text; Btn.Font = Enum.Font.GothamBold; Btn.Parent = parent or Container; Btn.LayoutOrder = getNextOrder()
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+    Btn.MouseButton1Click:Connect(function() callback() end)
+    return Btn
 end
 
 local function CreateSlider(text, min, max, default, callback, parent)
@@ -483,14 +659,6 @@ local function CreateSlider(text, min, max, default, callback, parent)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
     UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then Update(i) end end)
     return Frame
-end
-
-local function CreateButton(text, callback, parent)
-    local Btn = Instance.new("TextButton")
-    Btn.Text = text; Btn.Size = UDim2.new(1, -10, 0, 35); Btn.BackgroundColor3 = THEME.ElementBG; Btn.TextColor3 = THEME.Text; Btn.Font = Enum.Font.GothamBold; Btn.Parent = parent or Container; Btn.LayoutOrder = getNextOrder()
-    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
-    Btn.MouseButton1Click:Connect(function() callback() end)
-    return Btn
 end
 
 -- // SECCIONES DE INTERFAZ //
@@ -607,6 +775,27 @@ CreateToggle("🔙 TELETRANSPORTAR TRASERO", "BackTP", function(v) if not v then
 CreateButton("📍 GUARDAR POSICIÓN", function() if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then State.SavedCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame end end)
 CreateButton("🚀 TELETRANSPORTAR", function() if State.SavedCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then LocalPlayer.Character.HumanoidRootPart.CFrame = State.SavedCFrame end end)
 
+local SectionBotones = Instance.new("TextLabel"); SectionBotones.Text = "  BOTONES FLOTANTES"; SectionBotones.Size = UDim2.new(1,0,0,20); SectionBotones.TextColor3 = THEME.Accent; SectionBotones.BackgroundTransparency = 1; SectionBotones.Font = Enum.Font.GothamBlack; SectionBotones.Parent = Container; SectionBotones.LayoutOrder = getNextOrder()
+CreateToggle("🔘 FLOTANTE: AIMBOT", "FloatAimbot", function(v) FloatAimbotBtn.Visible = v end)
+CreateToggle("🔘 FLOTANTE: ESP", "FloatESP", function(v) FloatESPBtn.Visible = v end)
+CreateToggle("🔘 FLOTANTE: FLY", "FloatFly", function(v) FloatFlyBtn.Visible = v end)
+
+-- BOTÓN PARA EDITAR HUD
+local HUDSection = Instance.new("Frame"); HUDSection.Size = UDim2.new(1, -10, 0, 40); HUDSection.BackgroundColor3 = THEME.ElementBG; HUDSection.Parent = Container; HUDSection.LayoutOrder = getNextOrder()
+Instance.new("UICorner", HUDSection).CornerRadius = UDim.new(0, 6)
+local HUDLbl = Instance.new("TextLabel"); HUDLbl.Text = "  MODO EDICIÓN HUD"; HUDLbl.Size = UDim2.new(0.5, 0, 1, 0); HUDLbl.BackgroundTransparency = 1; HUDLbl.TextColor3 = THEME.Text; HUDLbl.Font = Enum.Font.GothamSemibold; HUDLbl.TextXAlignment = Enum.TextXAlignment.Left; HUDLbl.Parent = HUDSection
+local EditBtn = Instance.new("TextButton"); EditBtn.Text = "EDITAR"; EditBtn.Size = UDim2.new(0.4, 0, 0.7, 0); EditBtn.Position = UDim2.new(0.55, 0, 0.15, 0); EditBtn.BackgroundColor3 = THEME.Accent; EditBtn.TextColor3 = THEME.Text; EditBtn.Font = Enum.Font.GothamBold; EditBtn.Parent = HUDSection; Instance.new("UICorner", EditBtn).CornerRadius = UDim.new(0, 6)
+EditBtn.MouseButton1Click:Connect(function() EnableHUDEdit(true) end)
+
+-- EVENTOS DE BOTONES DE EDICIÓN
+SaveHUDBtn.MouseButton1Click:Connect(function()
+    EnableHUDEdit(false)
+end)
+
+CancelHUDBtn.MouseButton1Click:Connect(function()
+    EnableHUDEdit(false)
+end)
+
 -- // SECCIÓN DE INFORMACIÓN //
 local SectionInfo = Instance.new("TextLabel"); SectionInfo.Text = "  ESTADÍSTICAS DEL PANEL"; SectionInfo.Size = UDim2.new(1,0,0,20); SectionInfo.TextColor3 = THEME.Accent; SectionInfo.BackgroundTransparency = 1; SectionInfo.Font = Enum.Font.GothamBlack; SectionInfo.Parent = Container; SectionInfo.LayoutOrder = getNextOrder()
 
@@ -626,9 +815,9 @@ task.spawn(function()
     while ScriptRunning do
         local success, result = pcall(function()
             local url = "https://key-sistem-roblox-dm-default-rtdb.firebaseio.com/keys.json"
-            local HttpService = game:GetService("HttpService")
+            local HttpServiceReq = game:GetService("HttpService")
             local req = game:HttpGet(url)
-            local data = HttpService:JSONDecode(req)
+            local data = HttpServiceReq:JSONDecode(req)
             local activeCount = 0
             local currentTime = os.time()
             for k, v in pairs(data) do
@@ -714,6 +903,12 @@ AssignCat("WALL CHECK", "MISC")
 AssignCat("DISTANCE CHECK", "MISC")
 AssignCat("TEAM CHECK", "MISC")
 AssignCat("ACTIVAR ÓRBITA", "MISC")
+AssignCat("MODO EDICIÓN HUD", "MISC")
+
+AssignCat("BOTONES FLOTANTES", "MISC")
+AssignCat("FLOTANTE: AIMBOT", "MISC")
+AssignCat("FLOTANTE: ESP", "MISC")
+AssignCat("FLOTANTE: FLY", "MISC")
 
 AssignCat("KEYS ACTIVAS", "INFORMACIÓN")
 
@@ -722,7 +917,7 @@ if Container:FindFirstChild("OrbitGroup") then
 end
 
 for _, child in pairs(Container:GetChildren()) do
-    if child:IsA("TextLabel") and (string.find(child.Text, "COMBATE & VISUALES") or string.find(child.Text, "CONFIGURACIÓN DE VISUALES") or string.find(child.Text, "DARK BULLETS") or string.find(child.Text, "SISTEMA DE ÓRBITA") or string.find(child.Text, "MOVIMIENTO & TP") or string.find(child.Text, "ESTADÍSTICAS DEL PANEL")) then
+    if child:IsA("TextLabel") and (string.find(child.Text, "COMBATE & VISUALES") or string.find(child.Text, "CONFIGURACIÓN DE VISUALES") or string.find(child.Text, "DARK BULLETS") or string.find(child.Text, "SISTEMA DE ÓRBITA") or string.find(child.Text, "MOVIMIENTO & TP") or string.find(child.Text, "ESTADÍSTICAS DEL PANEL") or string.find(child.Text, "BOTONES FLOTANTES")) then
         child.Visible = false
     end
 end
@@ -795,7 +990,6 @@ RunService.RenderStepped:Connect(function(dt)
     if not ScriptRunning then return end 
     
     local target = GetClosestPlayer()
-
     local anyVisiblePlayer = false
     
     if State.ESPVisibilityColor then
@@ -825,7 +1019,7 @@ RunService.RenderStepped:Connect(function(dt)
         return THEME.Accent
     end
     
-    FOVFrame.Visible = State.ShowFOV and State.PanelVisible
+    FOVFrame.Visible = State.ShowFOV and State.PanelVisible and not State.EditingHUD
     FOVFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     
     local currentFOVColor = THEME.Accent
@@ -890,7 +1084,7 @@ RunService.RenderStepped:Connect(function(dt)
                 if espVisual then espVisual:Destroy() end
             end
 
-            if onScreen and hum.Health > 0 and State.PanelVisible and withinRange then
+            if onScreen and hum.Health > 0 and State.PanelVisible and withinRange and not State.EditingHUD then
                 if State.TeamCheck and p.Team == LocalPlayer.Team then 
                     if Tracers[p] then Tracers[p].Visible = false end
                     continue 
@@ -944,13 +1138,13 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    if State.Orbiting and State.OrbitTarget and State.OrbitTarget.Character and State.OrbitTarget.Character:FindFirstChild("HumanoidRootPart") and State.OrbitTarget.Character.Humanoid.Health > 0 then
+    if State.Orbiting and State.OrbitTarget and State.OrbitTarget.Character and State.OrbitTarget.Character:FindFirstChild("HumanoidRootPart") and State.OrbitTarget.Character.Humanoid.Health > 0 and not State.EditingHUD then
         local targetPart = State.OrbitTarget.Character.HumanoidRootPart
         State.OrbitAngle = State.OrbitAngle + (dt * State.OrbitSpeed)
         local offset = Vector3.new(math.cos(State.OrbitAngle) * State.OrbitDistance, 1, math.sin(State.OrbitAngle) * State.OrbitDistance)
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPart.Position + offset, targetPart.Position)
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
-    elseif State.BackTP then
+    elseif State.BackTP and not State.EditingHUD then
         if not State.BackTPTarget or not State.BackTPTarget.Character or State.BackTPTarget.Character.Humanoid.Health <= 0 then
             local closest, dist = nil, math.huge
             for _, p in pairs(Players:GetPlayers()) do
@@ -967,7 +1161,7 @@ RunService.RenderStepped:Connect(function(dt)
     end
 
     -- LÓGICA DE AIMBOT (MOBILE)
-    if State.AimbotMobile and not State.Orbiting then
+    if State.AimbotMobile and not State.Orbiting and not State.EditingHUD then
         if target then
             CurrentTargetPart = target
             local lerpSpeed = (State.AimbotMode == "DISIMULADO" and 0.05) or (State.AimbotMode == "DIRECTO" and 1.0) or 0.25
@@ -979,7 +1173,7 @@ RunService.RenderStepped:Connect(function(dt)
         CurrentTargetPart = nil
     end
     
-    if State.SpinHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    if State.SpinHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and not State.EditingHUD then
         local root = LocalPlayer.Character.HumanoidRootPart
         root.CFrame = root.CFrame * CFrame.fromEulerAnglesXYZ(0, math.rad(State.SpinSpeed), 0)
     end
@@ -987,7 +1181,7 @@ end)
 
 -- // PHYSICS LOOP //
 RunService.Stepped:Connect(function()
-    if not ScriptRunning then return end 
+    if not ScriptRunning or State.EditingHUD then return end 
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("Humanoid") then
         char.Humanoid.WalkSpeed = State.SpeedHack and State.Speed or 16
@@ -998,7 +1192,6 @@ RunService.Stepped:Connect(function()
     local ItemsModule = game:GetService("ReplicatedStorage"):FindFirstChild("Modules") and game:GetService("ReplicatedStorage").Modules:FindFirstChild("ItemLibrary")
     if ItemsModule then
         local Items = require(ItemsModule).Items
-        -- Aplicar Rapid Fire y No Recoil
         if IsRivals then
             for id, data in pairs(Items) do
                 if typeof(data) == "table" then
